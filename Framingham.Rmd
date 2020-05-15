@@ -1,0 +1,135 @@
+---
+title: "Framingham Heart Study"
+author: "Saurabh"
+date: "5/13/2020"
+output: html_document
+---
+
+Framingham Heart study dataset includes several demographic risk factors:-
+sex: male or female;
+age: age of the patient;
+education: levels coded 1 for some high school, 2 for a high school diploma or GED, 3 for some college or vocational school, and 4 for a college degree.
+
+The data set also includes behavioral risk factors associated with smoking
+currentSmoker: whether or not the patient is a current smoker
+cigsPerDay: the number of cigarettes that the person smoked on average in one day.
+
+Medical history risk factors
+BPMeds: whether or not the patient was on blood pressure medication
+prevalentStroke: whether or not the patient had previously had a stroke
+prevalentHyp: whether or not the patient was hypertensive
+diabetes: whether or not the patient had diabetes
+
+Risk factors from the first physical examination of the patient.
+
+totChol: total cholesterol level
+sysBP: systolic blood pressure
+diaBP: diastolic blood pressure
+BMI: Body Mass Index
+heartRate: heart rate
+glucose: glucose level
+TenYearCHD: 10 year risk of coronary heart disease CHD
+
+
+## Libraries
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(caTools)
+library(ROCR)
+```
+
+
+## Get Data
+```{r}
+framingham <- read_csv("framingham.csv")
+```
+
+```{r}
+glimpse(framingham)
+str(framingham)
+```
+```{r}
+head(framingham)
+```
+
+```{r}
+summary(framingham)
+```
+
+
+
+## Split Train & Test
+```{r}
+set.seed(1000)
+split = sample.split(framingham$TenYearCHD, SplitRatio = 0.65)
+train = subset(framingham, split==TRUE)
+test = subset(framingham, split==FALSE)
+```
+
+
+
+```{r}
+framinghamLog = glm(TenYearCHD ~ ., data = train, family=binomial)
+summary(framinghamLog)
+```
+If we look at the summary of the model, we can see that education, currentSmoker, BPMeds,diabetes, diaBP, BMI, heartRate are not significant in this model.
+
+
+
+
+Predictions on the test set
+```{r}
+predictTest = predict(framinghamLog, type="response", newdata=test)
+
+```
+
+We can find the accuracy of the model using confusion matrix
+
+Confusion matrix with threshold of 0.5
+```{r}
+table(test$TenYearCHD, predictTest > 0.5)
+
+```
+
+Accuracy
+
+```{r}
+(1069+11)/(1069+6+187+11)
+
+```
+
+
+
+Improved Logistic Regression Model
+
+```{r}
+framinghamLog=glm(TenYearCHD ~ .-education-currentSmoker-BMI-diaBP, data = train, family=binomial)
+summary(framinghamLog)
+```
+
+
+Predictions on the test set
+
+```{r}
+predictTest = predict(framinghamLog, type="response", newdata=test)
+
+```
+
+We can find the accuracy of the model using confusion matrix
+
+Confusion matrix with threshold of 0.5
+
+```{r}
+table(test$TenYearCHD, predictTest > 0.5)
+
+```
+
+
+Accuracy
+```{r}
+(1102+12)/(1102+12+6+187)
+```
+
+For this model the accuracy of this model is slightly greater than our previous model.
