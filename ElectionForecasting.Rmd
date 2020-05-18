@@ -1,0 +1,107 @@
+---
+title: "ElectionForecasting"
+author: "Saurabh"
+date: "5/18/2020"
+output: html_document
+---
+
+
+# The Dataset
+Data from RealClearPolitics.com
+• Instances represent a state in a given election
+• State: Name of state
+• Year: Election year (2004, 2008, 2012)
+• Dependent variable
+• Republican: 1 if Republican won state, 0 if Democrat won
+• Independent variables
+• Rasmussen, SurveyUSA: Polled R% - Polled D%
+• DiffCount: Polls with R winner – Polls with D winner
+• PropR: Polls with R winner / # polls 
+
+##Load Libraries
+```{r}
+library(tidyverse)
+library(mice)
+```
+
+## Data Loading 
+```{r}
+polling <-  read_csv("PollingData.csv")
+str(polling)
+table(polling$Year)
+summary(polling)
+```
+
+
+## Missing Data Imputation
+```{r}
+set.seed(144)
+imputed = complete(mice(polling))
+
+summary(imputed)
+
+polling <- polling %>% 
+          mutate(Rasmussen = imputed$Rasmussen ,
+                  SurveyUSA = imputed$SurveyUSA)%>%
+          glimpse()
+
+summary(polling)
+
+```
+
+## Create Training & Testing Set
+```{r}
+
+train <- filter(polling , Year == 2004 | Year == 2008)
+test <- filter(polling , Year == 2012)
+```
+
+
+```{r}
+table(train$Republican)
+
+
+table(sign(train$Rasmussen))
+
+
+table(train$Republican , sign(train$Rasmussen))
+
+cor(train %>% select(.,-"State"))
+
+```
+
+
+## Modeling 
+### Single Var model
+```{r}
+m1 <- glm(Republican ~ PropR , data= train , family = "binomial")
+summary(m1)
+
+pred1 <- predict(m1 , type = "response")
+table(train$Republican ,pred1 >= 0.5)
+```
+
+### 2 var model
+```{r}
+m2 <- glm(Republican ~ SurveyUSA +DiffCount, data = train , family = "binomial")
+summary(m2)
+
+pred2 <- predict(m2 , type ="response")
+table(train$Republican , pred2 >= 0.5)
+```
+
+### Applying pred to test set
+```{r}
+table(test$Republican , sign(test$Rasmussen))
+
+
+TestPrediction = predict(m2, newdata = test , type ="response")
+table(test$Republican , TestPrediction >= 0.5)
+```
+
+### Looking at the incorrect prediction
+```{r}
+test %>% filter(TestPrediction >= 0.5 , Republican == 0)
+```
+
+Here's where Obama won from!
