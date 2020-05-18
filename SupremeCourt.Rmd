@@ -1,0 +1,129 @@
+---
+title: "SupremeCourt"
+author: "Saurabh"
+date: "5/18/2020"
+output: html_document
+---
+
+## Data
+
+Cases from 1994 through 2001
+• In this period, same nine justices presided SCOTUS
+• Breyer, Ginsburg, Kennedy, O’Connor, Rehnquist (Chief
+Justice), Scalia, Souter, Stevens, Thomas
+• Rare data set – longest period of time with the same set
+of justices in over 180 years
+• We will focus on predicting Justice Stevens’ decisions
+• Started out moderate, but became more liberal
+• Self-proclaimmed conservative 
+
+## Variables
+• Dependent Variable: Did Justice Stevens vote to reverse
+the lower court decision? 1 = reverse, 0 = affirm
+• Independent Variables: Properties of the case
+• Circuit court of origin (1st – 11th, DC, FED)
+• Issue area of case (e.g., civil rights, federal taxation)
+• Type of petitioner, type of respondent (e.g., US, an employer)
+• Ideological direction of lower court decision (conservative or
+liberal)
+• Whether petitioner argued that a law/practice was
+unconstitutional 
+
+
+## Load Libraries
+```{r}
+library(tidyverse)
+library(rpart)
+library(rpart.plot)
+library(ROCR)
+library(caTools)
+library(e1071)
+library(caret)
+library(randomForest)
+```
+
+## Load Data
+```{r}
+stevens <- read_csv("stevens.csv")
+glimpse(stevens)
+str(stevens)
+```
+
+
+## Split 
+```{r}
+set.seed(3000)
+spl <- sample.split(stevens$Reverse , SplitRatio = 0.7)
+
+train <- subset(stevens , spl == TRUE)
+test <- subset(stevens , spl == FALSE)
+```
+
+
+## Cart Model
+```{r}
+stree <- rpart(Reverse ~ Circuit + Issue + Petitioner + Respondent +LowerCourt + 
+                 Unconst , data = train , 
+               method =  "class" , minbucket = 25)
+prp(stree)
+```
+###predict
+```{r}
+predictCart <- predict(stree , newdata = test ,type = "class")
+table(test$Reverse , predictCart)
+
+```
+
+
+##ROC
+```{r}
+predictRoc <- predict(stree , newdata = test)
+predictRoc
+
+pred = prediction(predictRoc[,2], test$Reverse)
+perf = performance(pred , "tpr" , "fpr")
+plot(perf)
+```
+###Accuracy 
+```{r}
+(41+71) / (41+36+22+71)
+```
+
+##Random Forest
+```{r}
+sforest <- randomForest(Reverse ~ Circuit + Issue + Petitioner + Respondent +LowerCourt + 
+Unconst , data = train , nodesize =  25 , ntree = 200)
+
+train <- train %>% mutate(Reverse = as.factor(Reverse))
+test <- test %>% mutate(Reverse = as.factor(Reverse))
+
+sforest <- randomForest(Reverse ~ Circuit + Issue + Petitioner + Respondent +LowerCourt + 
+          Unconst , data = train , nodesize =  25 , ntree = 200)
+
+predictforest <- predict(sforest , newdata = test)
+
+table(test$Reverse , predictforest)
+```
+### Accuracy
+```{r}
+(53+71) / (53+14+22+71)
+```
+
+
+##Cross Validation
+```{r}
+numfolds = trainControl(method = "cv", number = 10)
+cpgrid = expand.grid(.cp = seq(0.01,0.5,0.01))
+
+train(Reverse ~ Circuit + Issue + Petitioner + Respondent +LowerCourt + 
+Unconst , data = train , method = "rpart" , trControl = numfolds, tuneGrid =cpgrid)  
+
+streecv <- rpart(Reverse ~ Circuit + Issue + Petitioner + Respondent +LowerCourt + 
+Unconst , data = train ,method = "class" , cp =0.01) 
+
+predictcv <- predict(streecv , newdata = test , type ="class")
+table(test$Reverse , predictcv)
+
+(43+65) / (43+65+34+28)
+```
+
