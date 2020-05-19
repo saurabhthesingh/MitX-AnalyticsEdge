@@ -1,0 +1,113 @@
+---
+title: "D2Hawkeye"
+author: "Saurabh"
+date: "5/19/2020"
+output: html_document
+---
+
+
+## Load Libraries
+
+```{r}
+library(tidyverse)
+library(caTools)
+library(rpart)
+library(rpart.plot)
+
+```
+
+## Load Data
+
+```{r}
+claims <- read_csv("ClaimsData.csv")
+str(claims)
+```
+
+## % of patients costbucket wise
+
+```{r}
+table(claims$bucket2009) / nrow(claims)
+```
+
+
+## Data Splitting
+```{r}
+set.seed(88)
+spl <- sample.split(claims$bucket2009 , SplitRatio = 0.6)
+train <- filter(claims , spl== TRUE) %>% glimpse()
+test <- filter(claims , spl== FALSE) %>% glimpse()
+```
+
+## Baseline Method
+```{r}
+table(test$bucket2009 , test$bucket2008)
+
+(110138 + 10721 + 2774 + 1539 + 104) / nrow(test)
+```
+
+
+## Penalty Matrix
+```{r}
+PenaltyMatrix <- matrix(c(0,1,2,3,4,2,0,1,2,3,4,2,0,1,2,6,4,2,0,1,8,6,4,2,0),
+                byrow = TRUE,nrow = 5)
+PenaltyMatrix
+```
+
+## Penalty Error - Baseline Method
+```{r}
+
+as.matrix(table(test$bucket2009 , test$bucket2008)) * PenaltyMatrix
+
+sum(as.matrix(table(test$bucket2009 , test$bucket2008)) * PenaltyMatrix) / nrow(test)
+
+```
+
+## CART model
+```{r}
+claimsTree=rpart(bucket2009 ~age+alzheimers+arthritis+cancer+copd+depression +
+                    diabetes + heart.failure+ihd + kidney+ osteoporosis+stroke + 
+                    reimbursement2008 + bucket2008 , data = train , method = "class",cp=0.00005)
+
+prp(claimsTree)
+```
+
+
+
+## Predictions
+```{r}
+predictTest = predict(claimsTree, newdata = test, type= "class")
+
+table(test$bucket2009 , predictTest)
+
+(114141 + 16102 + 118 + 201 + 0)/nrow(test)
+```
+
+
+## Penalty Error -CART
+```{r}
+as.matrix(table(test$bucket2009 , predictTest)) * PenaltyMatrix
+
+sum(as.matrix(table(test$bucket2009 , predictTest)) * PenaltyMatrix)/nrow(test)
+```
+
+
+## CART model with loss matrix
+```{r}
+claimsTree=rpart(bucket2009 ~age+alzheimers+arthritis+cancer+copd+depression +
+   diabetes + heart.failure+ihd + kidney+ osteoporosis+stroke + reimbursement2008 + bucket2008 ,data = train , method = "class",cp=0.00005 ,
+   parms = list(loss = PenaltyMatrix))
+
+```
+
+## Redo Pred & Penalty
+
+```{r}
+
+predictTest = predict(claimsTree, newdata = test, type= "class")
+
+table(test$bucket2009 , predictTest)
+(94310 + 18942 + 4692 + 636 + 2)/nrow(test)
+
+sum(as.matrix(table(test$bucket2009 , predictTest)) * PenaltyMatrix)/nrow(test)
+```
+
