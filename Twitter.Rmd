@@ -1,0 +1,165 @@
+---
+title: "Twitter"
+author: "Saurabh"
+date: "5/20/2020"
+output: html_document
+---
+
+## Load Libraries
+
+```{r}
+library(tidyverse)
+library(tm)
+library(SnowballC)
+library(caTools)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+```
+
+## Read Data 
+```{r}
+tweets <-  read.csv("tweets.csv" , stringsAsFactors = FALSE)
+str(tweets)
+```
+
+Lets look at negative tweets
+```{r}
+tweets$Negative = as.factor(tweets$Avg <= -1)
+table(tweets$Negative)
+```
+
+## Corpus
+
+tm package introduces corpus, which is a collection of documents
+We need to convert tweets to corpus for preprocessing.
+
+### Create corpus
+```{r}
+corpus = Corpus(VectorSource(tweets$Tweet))
+# View corpus
+corpus
+corpus[[1]]$content
+
+```
+
+### Convert to lowercase
+```{r}
+corpus = tm_map(corpus , tolower)
+corpus[[1]]$content
+```
+
+### Remove punctuation
+```{r}
+corpus = tm_map(corpus , removePunctuation)
+corpus[[1]]$content
+```
+
+View Stopwords :
+```{r}
+stopwords("english")[1:10]
+```
+
+### Remove stopwords 
+```{r}
+corpus = tm_map(corpus , removeWords , c("apple" , stopwords("english")))
+corpus[[1]]$content
+```
+
+### Stem Document
+```{r}
+corpus = tm_map(corpus , stemDocument)
+corpus[[1]]$content
+```
+
+After preprocessing we are going to extract the word frequencies for prediction
+
+### Create Matrix
+```{r}
+frequencies = DocumentTermMatrix(corpus)
+frequencies
+```
+
+### look at matrix
+```{r}
+inspect(frequencies[1000:1005,500:515])
+```
+
+### Check for sparsity
+```{r}
+findFreqTerms(frequencies , lowfreq = 20)
+```
+
+only these are the terms that appear more than 20 times in our corpus.
+that means a lot of terms are useless for our model.
+so lets remove sparse terms
+
+### Remove sparse
+```{r}
+sparse = removeSparseTerms(frequencies, 0.995) #0.995 is sparsity threshold,i.e. 99.5 % tweets
+sparse
+```
+
+## Convert sparse into df
+
+```{r}
+tweetsSparse = as.data.frame(as.matrix(sparse))
+```
+
+make variable names R-friendly
+
+```{r}
+colnames(tweetsSparse) = make.names(colnames(tweetsSparse))
+
+```
+
+Add a dependent variable
+```{r}
+tweetsSparse$Negative = tweets$Negative
+```
+
+
+## Split Data
+```{r}
+set.seed(123)
+
+split = sample.split(tweetsSparse$Negative, SplitRatio = 0.7)
+
+trainSparse = subset(tweetsSparse, split==TRUE)
+testSparse = subset(tweetsSparse, split==FALSE)
+```
+
+## Build CART model
+```{r}
+tweetCART = rpart(Negative ~ ., data=trainSparse, method="class")
+
+prp(tweetCART)
+```
+
+## Evaluate Performance
+```{r}
+predictCart = predict(tweetCART , newdata = testSparse , type = "class")
+table(testSparse$Negative , predictCart)
+(294+18) / (294+18+6+37) # Accuracy
+```
+
+ Baseline Accuracy 
+```{r}
+table(testSparse$Negative)
+300/355 #Accuracy
+```
+
+Our cart model performs better than the baseline model . 
+
+## Random Forest 
+
+```{r}
+set.seed(123)
+tweetRF = randomForest(Negative ~ . , data = trainSparse)
+predictRF = predict(tweetRF , newdata = testSparse)
+table(testSparse$Negative , predictRF)
+
+#Accuracy
+(293+22) / (293+7+33+22)
+```
+
