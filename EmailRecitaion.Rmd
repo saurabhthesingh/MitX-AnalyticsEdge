@@ -1,0 +1,152 @@
+---
+title: "Emails_Recitaion"
+author: "Saurabh"
+date: "5/21/2020"
+output: html_document
+---
+
+### Load the libraries
+```{r}
+library(tm)
+library(rpart)
+library(rpart.plot)
+library(caTools)
+library(ROCR)
+```
+
+
+## Read the data
+```{r}
+emails = read.csv("energy_bids.csv" , stringsAsFactors =FALSE)
+str(emails)
+
+
+```
+We have 2 vars : email and whether it is responsive
+
+Lets look at a mail and whether it is responsive ?
+```{r}
+emails$email[1]
+emails$responsive[1]
+```
+
+this mail isn't responsive.
+Lets find out how many mails are :
+```{r}
+table(emails$responsive)
+```
+
+We can see that only 139 are.
+
+
+## Pre-processing
+
+Create corpus :
+```{r}
+corpus = Corpus(VectorSource(emails$email))
+corpus[[1]]$content
+```
+
+Apply operations : 
+```{r}
+corpus = tm_map(corpus , tolower)
+corpus = tm_map(corpus , removePunctuation)
+corpus = tm_map(corpus , removeWords , stopwords("english"))
+corpus = tm_map(corpus , stemDocument)
+```
+
+View 1st email :
+```{r}
+corpus[[1]]$content
+```
+
+Now corpus is ready for ml algos.
+
+##
+Create matrix
+```{r}
+dtm = DocumentTermMatrix(corpus)
+dtm
+```
+
+Remove Sparse terms
+```{r}
+dtm = removeSparseTerms(dtm , 0.97)
+dtm
+```
+
+Convert to df
+```{r}
+labeledTerms = as.data.frame(as.matrix(dtm))
+```
+
+Add outcome var
+```{r}
+labeledTerms$responsive = emails$responsive
+str(labeledTerms)
+```
+
+
+## Split Data
+```{r}
+set.seed(144)
+split = sample.split(labeledTerms$responsive , SplitRatio = 0.7)
+train = subset(labeledTerms , split == TRUE)
+test = subset(labeledTerms , split == FALSE)
+```
+
+## CART model
+```{r}
+emailcart = rpart(responsive ~ . , data =train ,method = "class")
+prp(emailcart)
+```
+
+## Evaluate
+
+Make predictions on test set
+```{r}
+pred = predict(emailcart , newdata = test)
+pred[1:10,]
+
+```
+
+Extract the prob of mail being responsive
+```{r}
+pred.prob = pred[,2]
+```
+
+Compute accuracy
+```{r}
+table(test$responsive , pred.prob >= 0.5)
+```
+
+```{r}
+(195+25)/(195+20+17+25)
+```
+
+Since Baseline always predicts as non responsive , check cart against it.
+
+```{r}
+table(test$responsive)
+```
+
+Accurcay of BL : 
+```{r}
+215/257
+```
+
+So CART model has slightly better accuracy.
+
+## Roc Curve
+```{r}
+predRocr = prediction(pred.prob , test$responsive)
+perfRocr =performance(predRocr , "tpr" , "fpr")
+plot(perfRocr , colorize = TRUE)
+```
+
+## Compute Auc
+```{r}
+performance(predRocr , "auc")@y.values
+```
+
+Our model can predict responsive mails with an accuracy of 80%
