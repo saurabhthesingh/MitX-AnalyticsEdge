@@ -1,0 +1,54 @@
+---
+title: "Netflix"
+author: "Saurabh"
+date: "5/29/2020"
+output: html_document
+---
+```{r}
+library(tidyverse)
+```
+
+```{r}
+movies  = read.table("movie.txt" , header = FALSE , sep = "|" , quote = "\"")
+str(movies)
+
+```
+
+```{r}
+colnames(movies) = c("ID", "Title", "ReleaseDate", "VideoReleaseDate", "IMDB", "Unknown", "Action", "Adventure", "Animation", "Childrens", "Comedy", "Crime", "Documentary", "Drama", "Fantasy", "FilmNoir", "Horror", "Musical", "Mystery", "Romance", "SciFi", "Thriller", "War", "Western")
+str(movies)
+
+```
+
+```{r}
+movies <- movies %>% select(-ID , -ReleaseDate , -VideoReleaseDate , -IMDB)
+str(movies)
+```
+
+```{r}
+distances = dist(movies[2:20] , method = "euclidian")
+clusterMovies = hclust(distances , method = "ward.D")
+plot(clusterMovies)
+```
+
+```{r}
+clusterGroup = cutree(clusterMovies , k=10)
+```
+
+
+```{r}
+tapply(movies$Action,clusterGroup,mean)
+```
+
+```{r}
+subset(movies, Title=="Men in Black (1997)")
+clusterGroup[257]
+```
+```{r}
+cluster2 = subset(movies ,clusterGroup == 2)
+```
+
+```{r}
+cluster2$Title[1:10]
+```
+
